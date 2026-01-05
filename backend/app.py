@@ -3,69 +3,50 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import joblib
 import numpy as np
-from feature_extraction import extract_features
 import os
+from feature_extraction import extract_features
 
 app = FastAPI(title="PhishGuard AI API")
 
-# ---------- CORS (required for Chrome extension) ----------
+# ✅ CORS for Chrome Extension
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],   # OK for demo / hackathon
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# ---------- Load model lazily ----------
-MODEL_PATH = "model.pkl"
+# -------- Model Loader --------
+MODEL_PATH = os.path.join(os.path.dirname(__file__), "model.pkl")
 _model = None
 
 def get_model():
     global _model
     if _model is None:
-        print("🔄 Loading ML model...")
         _model = joblib.load(MODEL_PATH)
-        print("✅ Model loaded")
     return _model
 
-
-# ---------- Request schema ----------
+# -------- Request Schema --------
 class URLRequest(BaseModel):
     url: str
 
-
-# ---------- Health check ----------
+# -------- Health Check --------
 @app.get("/")
 def root():
-    return {
-        "status": "running",
-        "service": "PhishGuard AI",
-        "message": "API is live"
-    }
+    return {"status": "running"}
 
-
-# ---------- Prediction endpoint ----------
+# -------- Prediction --------
 @app.post("/predict")
-def predict_url(data: URLRequest):
-    try:
-        model = get_model()
+def predict(data: URLRequest):
+    model = get_model()
+    features = extract_features(data.url)
+    X = np.array(features).reshape(1, -1)
 
-        features = extract_features(data.url)
-        features = np.array(features).reshape(1, -1)
+    pred = int(model.predict(X)[0])
+    prob = float(max(model.predict_proba(X)[0]))
 
-        prediction = model.predict(features)[0]
-        probabilities = model.predict_proba(features)[0]
-        confidence = float(max(probabilities))
-
-        label = "Phishing" if prediction == 1 else "Safe"
-
-        return {
-            "label": label,
-            "confidence": round(confidence, 2)
-        }
-
-    except Exception as e:
-        return {
-            "error": str(e)
-        }
+    return {
+        "label": "Phishing" if pred == 1 else "Safe",
+        "confidence": round(prob, 3)
+    }
