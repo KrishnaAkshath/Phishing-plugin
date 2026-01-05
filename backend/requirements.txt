@@ -4,4 +4,8 @@ pandas
 scikit-learn
 joblib
 requests
-
+fastapi
+uvicorn
+numpy
+scikit-learn
+joblib
