@@ -6,7 +6,7 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
 from feature_extraction import extract_features
 
-DATASET_URL = "https://drive.google.com/uc?export=download&id=1YaaGFO7Vq9IxVCrRCbwt25YtAV--JZNH"
+DATASET_URL = "https://drive.google.com/uc?id=1i6z9Wc1pCN_VH-ZofqOqdV5VWKKUU03B&export=download"
 DATASET_PATH = "dataset.csv"
 MODEL_PATH = "model.pkl"
 
