@@ -1,0 +1,15 @@
+{
+  "manifest_version": 3,
+  "name": "PhishGuard AI",
+  "version": "2.0",
+  "description": "AI-powered real-time phishing detection with page analysis",
+  "permissions": [
+    "tabs",
+    "scripting",
+    "activeTab"
+  ],
+  "action": {
+    "default_popup": "popup.html"
+  }
+}
+
