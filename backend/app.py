@@ -1,43 +1,59 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
 import joblib
-import pandas as pd
-import sys, os
-import requests
-
-# Allow importing from ml folder
-sys.path.append(os.path.abspath("../ml"))
+import os
 from feature_extraction import extract_features
+import numpy as np
 
-app = FastAPI()
+app = FastAPI(title="PhishGuard AI API")
 
-MODEL_URL = "https://drive.google.com/uc?id=1YaaGFO7Vq9IxVCrRCbwt25YtAV--JZNH"
-MODEL_PATH = "model.pkl"
+# --------- Lazy-loaded model ---------
+_model = None
 
-# Download model if not present
-if not os.path.exists(MODEL_PATH):
-    print("⬇️ Downloading ML model...")
-    r = requests.get(MODEL_URL)
-    with open(MODEL_PATH, "wb") as f:
-        f.write(r.content)
-    print("✅ Model downloaded")
+def get_model():
+    global _model
+    if _model is None:
+        print("🔄 Loading ML model...")
+        _model = joblib.load("model.pkl")
+        print("✅ Model loaded")
+    return _model
 
-# Load model
-model = joblib.load(MODEL_PATH)
 
+# --------- Request schema ---------
 class URLRequest(BaseModel):
     url: str
 
-@app.post("/predict")
-def predict(data: URLRequest):
-    features = extract_features(data.url)
-    X = pd.DataFrame([features])
 
-    prob = model.predict_proba(X)[0][1]
-    label = "Phishing" if prob >= 0.5 else "Safe"
-
+# --------- Health check ---------
+@app.get("/")
+def root():
     return {
-        "label": label,
-        "confidence": round(float(prob), 2)
+        "status": "running",
+        "service": "PhishGuard AI",
+        "message": "API is live"
     }
 
+
+# --------- Prediction endpoint ---------
+@app.post("/predict")
+def predict_url(data: URLRequest):
+    try:
+        model = get_model()
+
+        features = extract_features(data.url)
+        features = np.array(features).reshape(1, -1)
+
+        prediction = model.predict(features)[0]
+        confidence = max(model.predict_proba(features)[0])
+
+        label = "Phishing" if prediction == 1 else "Safe"
+
+        return {
+            "label": label,
+            "confidence": round(float(confidence), 2)
+        }
+
+    except Exception as e:
+        return {
+            "error": str(e)
+        }
