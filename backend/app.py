@@ -1,56 +1,76 @@
 from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-import os
 import joblib
+import os
+import requests
+import tempfile
 import numpy as np
+
 from feature_extraction import extract_features
-from train_model import ensure_model_exists
 
-app = FastAPI(title="PhishGuard AI API")
+app = FastAPI()
 
-# ---------- CORS (Chrome Extension Fix) ----------
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+MODEL_URL = os.getenv(
+    "MODEL_URL",
+    "https://drive.google.com/uc?id=1i6z9Wc1pCN_VH-ZofqOqdV5VWKKUU03B"
 )
 
 MODEL_PATH = "model.pkl"
+model = None
 
-# ---------- Request Schema ----------
+
 class URLRequest(BaseModel):
     url: str
 
-# ---------- Health Check ----------
-@app.get("/")
-def root():
-    return {
-        "status": "running",
-        "service": "PhishGuard AI",
-        "message": "API is live"
-    }
 
-# ---------- Prediction Endpoint ----------
-@app.post("/predict")
-def predict_url(data: URLRequest):
-    try:
-        # 🔥 Auto-train model if missing
-        ensure_model_exists()
+def download_model():
+    global model
 
+    if os.path.exists(MODEL_PATH):
         model = joblib.load(MODEL_PATH)
+        print("[+] Model loaded from disk")
+        return
 
-        features = extract_features(data.url)
-        features = np.array(features).reshape(1, -1)
+    print("[*] Downloading model from Google Drive...")
+    r = requests.get(MODEL_URL, timeout=30)
+    r.raise_for_status()
 
-        prediction = model.predict(features)[0]
-        confidence = max(model.predict_proba(features)[0])
+    with open(MODEL_PATH, "wb") as f:
+        f.write(r.content)
+
+    model = joblib.load(MODEL_PATH)
+    print("[+] Model downloaded & loaded")
+
+
+@app.on_event("startup")
+def startup():
+    download_model()
+
+
+@app.get("/")
+def health():
+    return {"status": "ok"}
+
+
+@app.post("/predict")
+def predict(req: URLRequest):
+    try:
+        features = extract_features(req.url)
+        X = np.array([features])
+
+        prediction = model.predict(X)[0]
+
+        # 🧠 Normalize output
+        if prediction in [1, "bad", "phishing", True]:
+            label = "Phishing"
+            confidence = 0.85
+        else:
+            label = "Safe"
+            confidence = 0.90
 
         return {
-            "label": "Phishing" if prediction == 1 else "Safe",
-            "confidence": round(float(confidence), 2)
+            "label": label,
+            "confidence": confidence
         }
 
     except Exception as e:
