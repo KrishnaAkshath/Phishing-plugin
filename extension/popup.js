@@ -1,4 +1,4 @@
-const API_URL = "http://127.0.0.1:8000/predict";
+const API_URL = "https://phishing-plugin.onrender.com/predict";
 
 window.onload = () => {
   scanCurrentPage();
@@ -14,8 +14,20 @@ function scanCurrentPage() {
   progressFill.style.width = "0%";
 
   chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+    if (!tabs || !tabs.length) {
+      riskText.innerText = "❌ No active tab";
+      return;
+    }
+
     const tab = tabs[0];
-    const url = tab.url;
+    const url = tab.url || "";
+
+    /* ❌ BLOCK CHROME INTERNAL PAGES */
+    if (url.startsWith("chrome://")) {
+      riskText.innerText = "⚠ Cannot scan browser system pages";
+      findings.innerHTML = "<li>Chrome restricts scanning on this page</li>";
+      return;
+    }
 
     /* ---------- PAGE CONTEXT SCAN ---------- */
     chrome.scripting.executeScript(
@@ -24,6 +36,14 @@ function scanCurrentPage() {
         func: pageAnalysis
       },
       (results) => {
+
+        /* ✅ SAFETY CHECK */
+        if (!results || !results.length || !results[0].result) {
+          findings.innerHTML += "<li>⚠ Page content scan unavailable</li>";
+          callMLAPI(url, riskText, progressFill, findings);
+          return;
+        }
+
         const pageData = results[0].result;
 
         if (url.includes("mail.google.com")) {
@@ -38,57 +58,61 @@ function scanCurrentPage() {
           findings.innerHTML += "<li>📄 Form submission detected</li>";
         }
 
-        /* ---------- CALL ML API ---------- */
-        fetch(API_URL, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ url })
-        })
-        .then(res => res.json())
-        .then(data => {
-          const score = Math.round(data.confidence * 100);
-
-          let risk = "LOW";
-          let color = "#22c55e";
-
-          if (score > 70) {
-            risk = "HIGH";
-            color = "#ef4444";
-          } else if (score > 40) {
-            risk = "MEDIUM";
-            color = "#facc15";
-          }
-
-          riskText.innerText = `${risk} RISK (${score}%)`;
-          riskText.style.color = color;
-          progressFill.style.width = score + "%";
-
-          if (score > 40) {
-            findings.innerHTML += "<li>⚠ Suspicious URL structure</li>";
-            findings.innerHTML += "<li>⚠ Login-related keywords</li>";
-          } else {
-            findings.innerHTML += "<li>✅ No major phishing indicators</li>";
-          }
-
-          /* ---------- VISUAL LINK HIGHLIGHTING ---------- */
-          if (score > 60) {
-            chrome.scripting.executeScript({
-              target: { tabId: tab.id },
-              func: highlightSuspiciousLinks
-            });
-          }
-
-          /* ---------- STRONG WARNING ---------- */
-          if (score > 75) {
-            alert("🚨 WARNING: High-risk phishing page detected!");
-          }
-        })
-        .catch(() => {
-          riskText.innerText = "❌ Scan failed";
-        });
+        callMLAPI(url, riskText, progressFill, findings, tab.id);
       }
     );
   });
+}
+
+/* ---------- ML API CALL ---------- */
+function callMLAPI(url, riskText, progressFill, findings, tabId) {
+  fetch(API_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ url })
+  })
+    .then(res => res.json())
+    .then(data => {
+      const score = Math.round(data.confidence * 100);
+
+      let risk = "LOW";
+      let color = "#22c55e";
+
+      if (score > 70) {
+        risk = "HIGH";
+        color = "#ef4444";
+      } else if (score > 40) {
+        risk = "MEDIUM";
+        color = "#facc15";
+      }
+
+      riskText.innerText = `${risk} RISK (${score}%)`;
+      riskText.style.color = color;
+      progressFill.style.width = score + "%";
+
+      if (score > 40) {
+        findings.innerHTML += "<li>⚠ Suspicious URL structure</li>";
+        findings.innerHTML += "<li>⚠ Login-related keywords</li>";
+      } else {
+        findings.innerHTML += "<li>✅ No major phishing indicators</li>";
+      }
+
+      /* ---------- LINK HIGHLIGHTING ---------- */
+      if (score > 60 && tabId) {
+        chrome.scripting.executeScript({
+          target: { tabId },
+          func: highlightSuspiciousLinks
+        });
+      }
+
+      /* ---------- STRONG WARNING ---------- */
+      if (score > 75) {
+        alert("🚨 WARNING: High-risk phishing page detected!");
+      }
+    })
+    .catch(() => {
+      riskText.innerText = "❌ Scan failed";
+    });
 }
 
 /* ---------- PAGE ANALYSIS FUNCTION ---------- */
@@ -112,4 +136,3 @@ function highlightSuspiciousLinks() {
     }
   });
 }
-
