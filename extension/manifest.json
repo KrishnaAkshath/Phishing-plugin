@@ -1,15 +1,12 @@
 {
   "manifest_version": 3,
   "name": "PhishGuard AI",
-  "version": "2.0",
-  "description": "AI-powered real-time phishing detection with page analysis",
-  "permissions": [
-    "tabs",
-    "scripting",
-    "activeTab"
+  "version": "1.0",
+  "permissions": ["activeTab"],
+  "host_permissions": [
+    "https://phishing-plugin-3.onrender.com/*"
   ],
   "action": {
     "default_popup": "popup.html"
   }
 }
-
