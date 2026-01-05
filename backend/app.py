@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import joblib
 import os
@@ -6,6 +7,15 @@ from feature_extraction import extract_features
 import numpy as np
 
 app = FastAPI(title="PhishGuard AI API")
+
+# ✅ CORS FIX (REQUIRED FOR CHROME EXTENSION)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # --------- Lazy-loaded model ---------
 _model = None
@@ -18,11 +28,9 @@ def get_model():
         print("✅ Model loaded")
     return _model
 
-
 # --------- Request schema ---------
 class URLRequest(BaseModel):
     url: str
-
 
 # --------- Health check ---------
 @app.get("/")
@@ -33,7 +41,6 @@ def root():
         "message": "API is live"
     }
 
-
 # --------- Prediction endpoint ---------
 @app.post("/predict")
 def predict_url(data: URLRequest):
@@ -43,17 +50,4 @@ def predict_url(data: URLRequest):
         features = extract_features(data.url)
         features = np.array(features).reshape(1, -1)
 
-        prediction = model.predict(features)[0]
-        confidence = max(model.predict_proba(features)[0])
-
-        label = "Phishing" if prediction == 1 else "Safe"
-
-        return {
-            "label": label,
-            "confidence": round(float(confidence), 2)
-        }
-
-    except Exception as e:
-        return {
-            "error": str(e)
-        }
+        prediction = model.predict(feature
