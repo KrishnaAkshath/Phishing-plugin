@@ -1,29 +1,22 @@
 import re
-from urllib.parse import urlparse
+import urllib.parse
 
-def extract_features(url):
-    features = []
+def extract_features(url: str):
+    parsed = urllib.parse.urlparse(url)
 
-    parsed = urlparse(url)
-
-    # Length features
-    features.append(len(url))
-    features.append(len(parsed.netloc))
-    features.append(len(parsed.path))
-
-    # Special character counts
-    features.append(url.count('-'))
-    features.append(url.count('@'))
-    features.append(url.count('?'))
-    features.append(url.count('%'))
-    features.append(url.count('.'))
-
-    # HTTPS check
-    features.append(1 if parsed.scheme == "https" else 0)
-
-    # IP address check
-    ip_pattern = r"\b\d{1,3}(\.\d{1,3}){3}\b"
-    features.append(1 if re.search(ip_pattern, url) else 0)
+    features = [
+        len(url),                              # URL length
+        url.count('.'),                        # number of dots
+        url.count('-'),                        # hyphens
+        url.count('@'),                        # @ symbol
+        url.count('?'),                        # query params
+        url.count('='),                        # equals
+        url.count('/'),                        # slashes
+        url.count('%'),                        # encoding
+        url.count('http'),                     # http occurrences
+        1 if parsed.scheme == "https" else 0, # HTTPS?
+        len(parsed.netloc),                    # domain length
+        1 if re.search(r"(login|verify|secure|account|bank)", url.lower()) else 0
+    ]
 
     return features
-
