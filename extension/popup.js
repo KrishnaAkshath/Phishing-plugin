@@ -1,4 +1,5 @@
-const API_URL = "https://phishing-plugin.onrender.com/predict";
+const API_URL = "https://phishing-plugin-3.onrender.com/predict";
+
 
 window.onload = () => {
   scanCurrentPage();
